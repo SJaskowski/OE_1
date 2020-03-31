@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+  <!--Main layout-->
+   <main>
+        <div class="container wow fadeIn">
+
+            <!-- Heading -->
+            <h2 class="my-5 h2 text-center">Zadanko </h2>
+
+            <!--Grid row-->
+            <div class="row">
+
+                <!--Grid column-->
+                <div class="col-md-8 mb-4 mx-auto">
+
+                    <!--Card-->
+                    <div class="card">
+
+
+                        <!--Card content-->
+                        <form method="POST" class="card-body">
+                            {% csrf_token %}
+
+                        <div class="ukryj_adres">
+                            <!--Grid row-->
+                            <div class="row">
+
+                                <!--Grid column-->
+                                <div class="col-md-6 mb-2">
+
+                                    <!--firstName-->
+                                    <div class="md-form ">
+                                        {{ formularz.zakres1 }}
+
+                                    </div>
+
+                                </div>
+                                <!--Grid column-->
+
+                                <!--Grid column-->
+                                <div class="col-md-6 mb-2">
+
+                                    <!--lastName-->
+                                    <div class="md-form">
+                                        {{ formularz.zakres2 }}
+                                    </div>
+
+                                </div>
+                                <!--Grid column-->
+
+                            </div>
+                            <!--Grid row-->
+
+                            <div class="row">
+                                <!--address-->
+                                <div class="md-form mb-5 ml-3">
+                                    {{ formularz.dokladnosc_reprezentacji_chromsomu }}
+                                    <label for="address" class=""></label>
+                                </div>
+
+                                <!--address-2-->
+                                <div class="md-form mb-5 ml-2">
+                                    {{ formularz.wielkosc_populacji }}
+                                    <label  class=""></label>
+                                </div>
+
+                            </div>
+
+                            <!--Grid row-->
+                            <div class="row">
+
+                                <!--Grid column-->
+                                <div class="col-lg-4 col-md-12 mb-4">
+
+                                    <label>liczba_epok</label>
+                                    {{ formularz.liczba_epok }}
+
+
+                                </div>
+                                <!--Grid column-->
+
+                                <!--Grid column-->
+
+                            </div>
+                            <!--Grid row-->
+
+                            <hr>
+
+
+
+                            <hr>
+
+                            <div class="d-block my-3">
+                                <label>metoda_Selekcji </label>
+                                {{ formularz.metoda_Selekcji }}
+                            </div>
+
+                            <div class="d-block my-3">
+                                <label>implementacja_Krzyzowania </label>
+                                {{ formularz.implementacja_Krzyzowania }}
+
+                            </div>
+                            <div class="d-block my-3">
+                                <label>prawdopodbienstwo_Krzyzowania </label>
+                                {{ formularz.prawdopodbienstwo_Krzyzowania }}
+
+                            </div>
+                            <div class="d-block my-3">
+                                <label>implementacja_MutacjiBrzegowej </label>
+                                {{ formularz.implementacja_MutacjiBrzegowej }}
+                            </div>
+                             <div class="d-block my-3">
+                                <label>prawdopodbienstwo_MutacjiBrzegowej </label>
+                                {{ formularz.prawdopodbienstwo_MutacjiBrzegowej }}
+
+                            </div>
+                            <div class="d-block my-3">
+                                <label>prawdopodbienstwo_OperatoraInwersji </label>
+                                {{ formularz.prawdopodbienstwo_OperatoraInwersji }}
+                            </div>
+                             <div class="d-block my-3">
+                                <label>ile_Przechodzi </label>
+                                {{ formularz.ile_Przechodzi }}
+                            </div>
+
+                            <hr class="mb-4">
+                            <button class="btn btn-primary btn-lg btn-block" type="submit">PLX 3</button>
+
+                        </form>
+
+                    </div>
+                    <!--/.Card-->
+
+                </div>
+                <!--Grid column-->
+
+
+            </div>
+            <!--Grid column-->
+
+        </div>
+        <!--Grid row-->
+
+        </div>
+    </main>
+{% endblock %}
