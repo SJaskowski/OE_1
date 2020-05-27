@@ -39,3 +39,4 @@ class FormularzPoczatkowy(forms.Form):
     prawdopodbienstwo_MutacjiBrzegowej = forms.FloatField(widget=forms.TextInput(attrs={'placeholder':"prawdopodbienstwo_Mutacji"}))
     prawdopodbienstwo_OperatoraInwersji = forms.FloatField(widget=forms.TextInput(attrs={'placeholder':"prawdopodbienstwo_OperatoraInwersji"}))
     ile_Przechodzi = forms.FloatField(widget=forms.TextInput(attrs={'placeholder':"Ile % najepszych prezchodzi do następnej epoki"}))
+    ID_Wyniku = forms.FloatField(widget=forms.TextInput(attrs={'placeholder':"ID_Wyniku"}))

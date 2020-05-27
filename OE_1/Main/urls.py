@@ -6,6 +6,6 @@ from .views import MainView,WynikDzialania
 app_name="Main"
 urlpatterns = [
     path('',MainView.as_view(),name="main"),
-    path('wynik',WynikDzialania.as_view(),name="wynik")
+    path('wynik/<id>',WynikDzialania.as_view(),name="wynik")
 
 ]
