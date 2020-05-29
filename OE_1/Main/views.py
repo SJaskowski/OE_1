@@ -1,4 +1,4 @@
-from Genetic.selection import tournamentSelect,getRouletteWheel,rouletteWheelSelect
+from Genetic.selection import tournamentSelect,getRouletteWheel,rouletteWheelSelect,Individual
 from django.shortcuts import render,get_object_or_404,redirect
 from django.views.generic import TemplateView,DetailView,ListView
 from .forms import FormularzPoczatkowy
@@ -6,13 +6,11 @@ from  .models import Epoka,PojedynczaWartoscWyniku,Ustawienia,Wynik
 from django.contrib import messages
 from django.utils import timezone
 import statistics,math,random
-from
+import heapq
 
 
 
-
-# Create your views here. TODO Wyswietlanie wynikow do funkcji/klasyy
-
+# Create your views here.
 
 
 
@@ -38,8 +36,19 @@ class MainView(TemplateView):
                 prawdopodbienstwo_MutacjiBrzegowej = formularz.cleaned_data.get('prawdopodbienstwo_MutacjiBrzegowej')
                 prawdopodbienstwo_OperatoraInwersji = formularz.cleaned_data.get('prawdopodbienstwo_OperatoraInwersji')
                 ile_Przechodzi = formularz.cleaned_data.get('ile_Przechodzi')
+                if ile_Przechodzi is None:
+                    ile_Przechodzi=30
+
                 rodzaj_Optymalizacj=formularz.cleaned_data.get('rodzaj_Optymalizacj')
-                ID_Wyniku= formularz.cleaned_data.get('ID_Wyniku')
+                wielkosc_turnieju=formularz.cleaned_data.get('wielkosc_turnieju')
+                elita=formularz.cleaned_data.get('elita')
+                if wielkosc_turnieju is None:
+                    wielkosc_turnieju=3
+                if dokladnosc_reprezentacji_chromsomu < 3:
+                    dokladnosc_reprezentacji_chromsomu=6
+                if wielkosc_populacji-elita <= round(wielkosc_populacji*(ile_Przechodzi/100)):
+                    elita=elita-round(wielkosc_populacji*(ile_Przechodzi/100))
+               # ID_Wyniku= formularz.cleaned_data.get('ID_Wyniku')
                 ustawienia=Ustawienia.objects.create(
                     zakres1 = zakres1,
                     zakres2 = zakres2,
@@ -54,14 +63,16 @@ class MainView(TemplateView):
                     prawdobodobienstwoinwersji = prawdopodbienstwo_OperatoraInwersji,
                     ileprzechodzi = ile_Przechodzi,
                     rodzaj_Optymalizacj=rodzaj_Optymalizacj,
-                    ID_Wyniku=ID_Wyniku
+                    wielkosc_turnieju=wielkosc_turnieju,
+                    elita=elita
+                    #
 
                 )
-                licz(ustawienia)
-                return redirect('Main:wynik',ustawienia.ID_Wyniku)
+
+                return redirect('Main:wynik',licz(ustawienia))
         else:
             messages.warning(self.request, "Błędnie uzupełniony formularz")
-            return render(self.request, "daneAdresowe.html")
+            return redirect("Main:main")
 
 
 
@@ -69,12 +80,75 @@ class WynikDzialania(ListView):
     model = Epoka
 
     def get_context_data(self, **kwargs):
+        context = super().get_context_data()
         id_wyniku = self.request.path.rsplit("/")
         id_wyniku=id_wyniku[-1]
         Wyniki = Wynik.objects.filter(id=id_wyniku)
-        context = {"Epoka":Wyniki[0].epoka_set.all()}
+        ustawienia= Wyniki[0].epoka_set.all()[0]
+        lista_srednich=[]
+        lista_odchylen = []
+        iteracja= []
+        czas=0
+        for x in Wyniki[0].epoka_set.all():
+            lista_srednich.append(float(x.sredniWynik))
+            lista_odchylen.append(str(x.odchylenieStandardowe))
+            czas+=float(x.czas)
+            tmp=x.iteracja.rsplit("/")
+            tmp=tmp[0]
+            iteracja.append(tmp)
+
+        if(ustawienia.ustawienia.rodzaj_Optymalizacj=='Min'):
+            maks=min(lista_srednich)
+            najelpsza_epoka=lista_srednich.index(maks)+1
+        else:
+            maks = max(lista_srednich)
+            najelpsza_epoka = lista_srednich.index(maks) + 1
+
+        context= {"srednie": lista_srednich,
+                   "odchylenie": lista_odchylen,
+                   "Epoka": Wyniki[0].epoka_set.all(),
+                   "iteracja":iteracja,
+                   "czas":czas,
+                   "ustawienia":ustawienia,
+                    "maks":maks,
+                    "najelpsza_epoka":najelpsza_epoka
+                   }
+
+
         return context
-    template_name = "Obliczenia.html"
+    template_name = "Wynik.html"
+
+class DetaleEpoki(DetailView):
+        model = Epoka
+
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data()
+            lista_x = []
+            lista_y = []
+            lista_z = []
+
+
+            for x in self.object.pojedynczawartoscwyniku_set.all():
+                lista_x.append(x.x1)
+                lista_y.append(x.x2)
+                lista_z.append(x.wartosc)
+            if self.object.ustawienia.rodzaj_Optymalizacj == "Min":
+                najelpszyWyniki=self.object.pojedynczawartoscwyniku_set.all()[lista_z.index(min(lista_z))]
+            else:
+                najelpszyWyniki = self.object.pojedynczawartoscwyniku_set.all()[lista_z.index(max(lista_z))]
+            context ['lista_x'] = lista_x
+            context['lista_y'] =  lista_y
+            context['lista_z'] =  lista_z
+            context['zakres1'] = self.object.ustawienia.zakres1
+            context['zakres2'] = self.object.ustawienia.zakres2
+            context['min'] = min(lista_z)
+            context['max'] = max(lista_z)
+            context['najlepszy']=najelpszyWyniki
+
+            return context
+
+        template_name = "Epoka_detale.html"
+
 
 
 def binarnaReprezentacja(zakres1, zakres2, dokladnosc, liczba):
@@ -161,52 +235,143 @@ def poczatkoweWartosci(populacja,zakres1,zakres2):
     return lista
 
 
-def selekcjaNajelpszychMAX(ile_najlepszych,populacja=[]):
-    licznik=round(ile_najlepszych*populacja.__len__())
+def selekcjaNajelpszychMAX(ustawienia,populacja=[]):
+    licznik=round((ustawienia.ileprzechodzi/100)*populacja.__len__())
     najelpsze=[]
-    i = 0
-    j = 0
-    for i in (0,len(populacja)):
-        max=0
-        for j in (0,licznik):
-            if(populacja[i].wynik>max):
-                max=populacja[i].wynik
-                individual=populacja[i]
-            populacja.remove(individual)
-            najelpsze.append(individual)
-    return najelpsze
+    lista_wynikow=[]
+    Populacja_elity=[]
+    for x in populacja:
+        lista_wynikow.append(x.wynik)
+    elita=heapq.nlargest(ustawienia.elita,lista_wynikow)
+    for i in elita:
+        x=populacja[elita.index(i)]
+        Populacja_elity.append(x)
+        lista_wynikow.remove(x.wynik)
+        populacja.remove(x)
+    tmp = heapq.nlargest(licznik, lista_wynikow)
+    for i in tmp:
+        najelpsze.append(populacja[tmp.index(i)])
+
+    for i in range(najelpsze.__len__(),populacja.__len__()):
+        najelpsze.append(najelpsze[random.randint(0,najelpsze.__len__()-1)])
 
 
-def selekcjaNajelpszychMIN(ile_najlepszych, populacja=[]):
-    licznik=round(ile_najlepszych*populacja.count())
-    najelpsze=[]
-    i = 0
-    j = 0
-    for i in (0,len(populacja)):
-        min=0
-        for j in (0,licznik):
-            if(populacja[j].wynik<min):
-                min=populacja[j].wynik
-        populacja.remove(min)
-        najelpsze.append(min)
-    return najelpsze
+    return najelpsze,Populacja_elity
+
+def selekcjaNajelpszychMIN(ustawienia, populacja=[]):
+    licznik = round((ustawienia.ileprzechodzi / 100) * populacja.__len__())
+    najelpsze = []
+    lista_wynikow = []
+    Populacja_elity = []
+    for x in populacja:
+        lista_wynikow.append(x.wynik)
+    elita = heapq.nsmallest(ustawienia.elita, lista_wynikow)
+    for i in elita:
+        x = populacja[elita.index(i)]
+        Populacja_elity.append(x)
+        lista_wynikow.remove(x.wynik)
+        populacja.remove(x)
+    tmp = heapq.nsmallest(licznik, lista_wynikow)
+    for i in tmp:
+        najelpsze.append(populacja[tmp.index(i)])
+    for i in range(najelpsze.__len__(), populacja.__len__()):
+        najelpsze.append(najelpsze[random.randint(0, najelpsze.__len__() - 1)])
+
+    return najelpsze,Populacja_elity
+
+#todo check strategia elitarna
+
+def selecjaTurniejowa(ustawienia, populacja=[]):
+    answer = []
+    lista_wynikow = []
+    Populacja_elity = []
+    if ustawienia.rodzaj_Optymalizacj=='Min':
+        #elita
+
+        for x in populacja:
+            lista_wynikow.append(x.wynik)
+        elita = heapq.nsmallest(ustawienia.elita, lista_wynikow)
+        for i in elita:
+            x = populacja[elita.index(i)]
+            Populacja_elity.append(x)
+            populacja.remove(x)
+        lista_wynikow=[]
+        # elita
+        for x in populacja:
+            lista_wynikow.append(x.wynik)
+        while len(answer) < ustawienia.wielkoscPopulacji:
+            tmp = random.sample(populacja, ustawienia.wielkosc_turnieju)
+            best = max(lista_wynikow)
+            for i in tmp:
+                if i.wynik < best:
+                    best = i.wynik
+            answer.append(populacja[lista_wynikow.index(best)])
+    else:
+        # elita
+
+        for x in populacja:
+            lista_wynikow.append(x.wynik)
+        elita = heapq.nlargest(ustawienia.elita, lista_wynikow)
+        for i in elita:
+            x = populacja[elita.index(i)]
+            Populacja_elity.append(x)
+            populacja.remove(x)
+        lista_wynikow = []
+        # elita
+        for x in populacja:
+            lista_wynikow.append(x.wynik)
+        while len(answer) < ustawienia.wielkoscPopulacji:
+            tmp=random.sample(populacja, ustawienia.wielkosc_turnieju)
+            best=0
+            for i in tmp:
+                if i.wynik >best:
+                    best=i.wynik
+            answer.append(populacja[lista_wynikow.index(best)])
+    return answer,Populacja_elity
 
 
-def selecjaTurniejowa(iloscZwyciezcow, wielkoscTurnieju, populacja=[]):
-    return tournamentSelect(populacja,wielkoscTurnieju,iloscZwyciezcow)
-
-
-def selekcjaKolemRuletki(populacja=[]):
+def selekcjaKolemRuletki(ustawienia,populacja=[]):
     score={}
+    lista_wynikow=[]
+    Populacja_elity=[]
     najlepsi=[]
-    for indiv in populacja:
-        score.update({indiv:indiv.wynik})
-    for x in range(0,populacja.__len__()):
-     najlepsi.append(rouletteWheelSelect(getRouletteWheel(populacja,score)))
-    return najlepsi
+    if ustawienia.rodzaj_Optymalizacj=="Max":
+        # elita
+
+        for x in populacja:
+            lista_wynikow.append(x.wynik)
+        elita = heapq.nlargest(ustawienia.elita, lista_wynikow)
+        for i in elita:
+            x = populacja[elita.index(i)]
+            Populacja_elity.append(x)
+            populacja.remove(x)
+            lista_wynikow = []
+        # elita
+        for indiv in populacja:
+            score.update({indiv:indiv.wynik})
+        for x in range(0,populacja.__len__()):
+         najlepsi.append(rouletteWheelSelect(getRouletteWheel(populacja,score)))
+    else:
+        if ustawienia.rodzaj_Optymalizacj == "Min":
+            # elita
+
+            for x in populacja:
+                lista_wynikow.append(x.wynik)
+            elita = heapq.nsmallest(ustawienia.elita, lista_wynikow)
+            for i in elita:
+                x = populacja[elita.index(i)]
+                Populacja_elity.append(x)
+                populacja.remove(x)
+                lista_wynikow=[]
+            # elita
+            for indiv in populacja:
+                score.update({indiv: 1/indiv.wynik})
+            for x in range(0, populacja.__len__()):
+                najlepsi.append(rouletteWheelSelect(getRouletteWheel(populacja, score)))
+    return najlepsi,Populacja_elity
 
 
-def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
+def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc,elita, populacja=[]):
     nowePokolenie=[]
     if typ=="JP": # Krzyzowanie jednopuknotowe
         for x in range(populacja.__len__()):
@@ -279,8 +444,20 @@ def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
                 potomek1cecha2 = "".join(potomek1cecha2)
 
                 tmp = individual()
-                tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-                tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+                x=dziesietnaReprezentacja(potomek1cecha1)
+                y=dziesietnaReprezentacja(potomek1cecha2)
+                if x<zakres1 or x>zakres2:
+                  if x-zakres1 < x-zakres2:
+                      x=zakres1
+                  else:
+                      x=zakres2
+                if y<zakres1 or y>zakres2:
+                  if y-zakres1 < y-zakres2:
+                      y=zakres1
+                  else:
+                      y=zakres2
+                tmp.cecha1 = x
+                tmp.cecha2 = y
                 tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
                 nowePokolenie.append(tmp)
                 break
@@ -346,8 +523,20 @@ def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
             potomek1cecha2 = "".join(potomek1cecha2)
 
             tmp = individual()
-            tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-            tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+            x = dziesietnaReprezentacja(potomek1cecha1)
+            y = dziesietnaReprezentacja(potomek1cecha2)
+            if x < zakres1 or x > zakres2:
+                if x - zakres1 < x - zakres2:
+                    x = zakres1
+                else:
+                    x = zakres2
+            if y < zakres1 or y > zakres2:
+                if y - zakres1 < y - zakres2:
+                    y = zakres1
+                else:
+                    y = zakres2
+            tmp.cecha1 = x
+            tmp.cecha2 = y
             tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
             nowePokolenie.append(tmp)
 
@@ -424,8 +613,20 @@ def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
                 potomek1cecha2 = "".join(potomek1cecha2)
 
                 tmp = individual()
-                tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-                tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+                x = dziesietnaReprezentacja(potomek1cecha1)
+                y = dziesietnaReprezentacja(potomek1cecha2)
+                if x < zakres1 or x > zakres2:
+                    if x - zakres1 < x - zakres2:
+                        x = zakres1
+                    else:
+                        x = zakres2
+                if y < zakres1 or y > zakres2:
+                    if y - zakres1 < y - zakres2:
+                        y = zakres1
+                    else:
+                        y = zakres2
+                tmp.cecha1 = x
+                tmp.cecha2 = y
                 tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
                 nowePokolenie.append(tmp)
                 break
@@ -486,8 +687,20 @@ def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
             potomek1cecha2 = "".join(potomek1cecha2)
 
             tmp = individual()
-            tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-            tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+            x = dziesietnaReprezentacja(potomek1cecha1)
+            y = dziesietnaReprezentacja(potomek1cecha2)
+            if x < zakres1 or x > zakres2:
+                if x - zakres1 < x - zakres2:
+                    x = zakres1
+                else:
+                    x = zakres2
+            if y < zakres1 or y > zakres2:
+                if y - zakres1 < y - zakres2:
+                    y = zakres1
+                else:
+                    y = zakres2
+            tmp.cecha1 = x
+            tmp.cecha2 = y
             tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
             nowePokolenie.append(tmp)
 
@@ -570,8 +783,20 @@ def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
              potomek1cecha2 = "".join(potomek1cecha2)
 
              tmp = individual()
-             tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-             tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+             x = dziesietnaReprezentacja(potomek1cecha1)
+             y = dziesietnaReprezentacja(potomek1cecha2)
+             if x < zakres1 or x > zakres2:
+                 if x - zakres1 < x - zakres2:
+                     x = zakres1
+                 else:
+                     x = zakres2
+             if y < zakres1 or y > zakres2:
+                 if y - zakres1 < y - zakres2:
+                     y = zakres1
+                 else:
+                     y = zakres2
+             tmp.cecha1 = x
+             tmp.cecha2 = y
              tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
              nowePokolenie.append(tmp)
              break
@@ -641,8 +866,20 @@ def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
          potomek1cecha2 = "".join(potomek1cecha2)
 
          tmp = individual()
-         tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-         tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+         x = dziesietnaReprezentacja(potomek1cecha1)
+         y = dziesietnaReprezentacja(potomek1cecha2)
+         if x < zakres1 or x > zakres2:
+             if x - zakres1 < x - zakres2:
+                 x = zakres1
+             else:
+                 x = zakres2
+         if y < zakres1 or y > zakres2:
+             if y - zakres1 < y - zakres2:
+                 y = zakres1
+             else:
+                 y = zakres2
+         tmp.cecha1 = x
+         tmp.cecha2 = y
          tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
          nowePokolenie.append(tmp)
 
@@ -709,8 +946,20 @@ def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
              potomek1cecha2 = "".join(potomek1cecha2)
 
              tmp = individual()
-             tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-             tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+             x = dziesietnaReprezentacja(potomek1cecha1)
+             y = dziesietnaReprezentacja(potomek1cecha2)
+             if x < zakres1 or x > zakres2:
+                 if x - zakres1 < x - zakres2:
+                     x = zakres1
+                 else:
+                     x = zakres2
+             if y < zakres1 or y > zakres2:
+                 if y - zakres1 < y - zakres2:
+                     y = zakres1
+                 else:
+                     y = zakres2
+             tmp.cecha1 = x
+             tmp.cecha2 = y
              tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
              nowePokolenie.append(tmp)
              break
@@ -773,14 +1022,26 @@ def implementacjaKrzyzowania(typ, zakres1, zakres2, dokladnosc, populacja=[]):
          potomek1cecha2 = "".join(potomek1cecha2)
 
          tmp = individual()
-         tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-         tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+         x = dziesietnaReprezentacja(potomek1cecha1)
+         y = dziesietnaReprezentacja(potomek1cecha2)
+         if x < zakres1 or x > zakres2:
+             if x - zakres1 < x - zakres2:
+                 x = zakres1
+             else:
+                 x = zakres2
+         if y < zakres1 or y > zakres2:
+             if y - zakres1 < y - zakres2:
+                 y = zakres1
+             else:
+                 y = zakres2
+         tmp.cecha1 = x
+         tmp.cecha2 = y
          tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
          nowePokolenie.append(tmp)
     return nowePokolenie
 
 
-def implementacjaMutacji(typ,prawdobodobienstwo, zakres1, zakres2, dokladnosc,populacja=[]):
+def implementacjaMutacji(typ,prawdobodobienstwo, zakres1, zakres2, dokladnosc,elita,populacja=[]):
     nowePokolenie=[]
     if typ == "MB":
         for x in populacja:
@@ -809,8 +1070,20 @@ def implementacjaMutacji(typ,prawdobodobienstwo, zakres1, zakres2, dokladnosc,po
                         chromosom1cecha2bin = "".join(chromosom1cecha2bin)
 
                 tmp = individual()
-                tmp.cecha1 = dziesietnaReprezentacja(chromosom1cecha1bin)
-                tmp.cecha2 = dziesietnaReprezentacja(chromosom1cecha2bin)
+                x = dziesietnaReprezentacja(chromosom1cecha1bin)
+                y = dziesietnaReprezentacja(chromosom1cecha2bin)
+                if x < zakres1 or x > zakres2:
+                    if x - zakres1 < x - zakres2:
+                        x = zakres1
+                    else:
+                        x = zakres2
+                if y < zakres1 or y > zakres2:
+                    if y - zakres1 < y - zakres2:
+                        y = zakres1
+                    else:
+                        y = zakres2
+                tmp.cecha1 = x
+                tmp.cecha2 = y
                 tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
                 nowePokolenie.append(tmp)
 
@@ -821,8 +1094,8 @@ def implementacjaMutacji(typ,prawdobodobienstwo, zakres1, zakres2, dokladnosc,po
             if random.uniform(0, 100) <= prawdobodobienstwo:
                 chromosom1cecha1bin = binarnaReprezentacja(zakres1, zakres2, dokladnosc, x.cecha1)
                 chromosom1cecha2bin = binarnaReprezentacja(zakres1, zakres2, dokladnosc, x.cecha2)
-                punktMutacji = random.uniform(0, binarnaReprezentacja(zakres1, zakres2, dokladnosc,
-                                                                  populacja[x].cecha1).__len__()-1)
+                punktMutacji = random.randint(0, binarnaReprezentacja(zakres1, zakres2, dokladnosc,
+                                                                  x.cecha1).__len__()-1)
                 if chromosom1cecha1bin[punktMutacji] == "0":
                     chromosom1cecha1bin = list(chromosom1cecha1bin)
                     chromosom1cecha1bin[punktMutacji] = "1"
@@ -842,10 +1115,21 @@ def implementacjaMutacji(typ,prawdobodobienstwo, zakres1, zakres2, dokladnosc,po
                         chromosom1cecha2bin[punktMutacji] = "0"
                         chromosom1cecha2bin = "".join(chromosom1cecha2bin)
 
-
                 tmp = individual()
-                tmp.cecha1 = dziesietnaReprezentacja(chromosom1cecha1bin)
-                tmp.cecha2 = dziesietnaReprezentacja(chromosom1cecha2bin)
+                x = dziesietnaReprezentacja(chromosom1cecha1bin)
+                y = dziesietnaReprezentacja(chromosom1cecha2bin)
+                if x < zakres1 or x > zakres2:
+                    if x - zakres1 < x - zakres2:
+                        x = zakres1
+                    else:
+                        x = zakres2
+                if y < zakres1 or y > zakres2:
+                    if y - zakres1 < y - zakres2:
+                        y = zakres1
+                    else:
+                        y = zakres2
+                tmp.cecha1 = x
+                tmp.cecha2 = y
                 tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
                 nowePokolenie.append(tmp)
 
@@ -856,13 +1140,13 @@ def implementacjaMutacji(typ,prawdobodobienstwo, zakres1, zakres2, dokladnosc,po
             if random.uniform(0, 100) <= prawdobodobienstwo:
                 chromosom1cecha1bin = binarnaReprezentacja(zakres1, zakres2, dokladnosc, x.cecha1)
                 chromosom1cecha2bin = binarnaReprezentacja(zakres1, zakres2, dokladnosc, x.cecha2)
-                punktMutacji = random.uniform(0, binarnaReprezentacja(zakres1, zakres2, dokladnosc,
-                                                              populacja[x].cecha1).__len__()-1)
-                punktMutacji2 = random.uniform(0, binarnaReprezentacja(zakres1, zakres2, dokladnosc,
-                                                              populacja[x].cecha1).__len__()-1)
+                punktMutacji = random.randint(0, binarnaReprezentacja(zakres1, zakres2, dokladnosc,
+                                                              x.cecha1).__len__()-1)
+                punktMutacji2 = random.randint(0, binarnaReprezentacja(zakres1, zakres2, dokladnosc,
+                                                              x.cecha1).__len__()-1)
                 while punktMutacji2 == punktMutacji:
-                    punktMutacji2 = random.uniform(0, binarnaReprezentacja(zakres1, zakres2, dokladnosc,
-                                                                   populacja[x].cecha1).__len__()-1)
+                    punktMutacji2 = random.randint(0, binarnaReprezentacja(zakres1, zakres2, dokladnosc,
+                                                                   x.cecha1).__len__()-1)
                 if chromosom1cecha1bin[punktMutacji] == "0":
                     chromosom1cecha1bin = list(chromosom1cecha1bin)
                     chromosom1cecha1bin[punktMutacji] = "1"
@@ -904,8 +1188,20 @@ def implementacjaMutacji(typ,prawdobodobienstwo, zakres1, zakres2, dokladnosc,po
                         chromosom1cecha2bin = "".join(chromosom1cecha2bin)
 
                 tmp = individual()
-                tmp.cecha1 = dziesietnaReprezentacja(chromosom1cecha1bin)
-                tmp.cecha2 = dziesietnaReprezentacja(chromosom1cecha2bin)
+                x = dziesietnaReprezentacja(chromosom1cecha1bin)
+                y = dziesietnaReprezentacja(chromosom1cecha2bin)
+                if x < zakres1 or x > zakres2:
+                    if x - zakres1 < x - zakres2:
+                        x = zakres1
+                    else:
+                        x = zakres2
+                if y < zakres1 or y > zakres2:
+                    if y - zakres1 < y - zakres2:
+                        y = zakres1
+                    else:
+                        y = zakres2
+                tmp.cecha1 = x
+                tmp.cecha2 = y
                 tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
                 nowePokolenie.append(tmp)
             else:
@@ -913,7 +1209,7 @@ def implementacjaMutacji(typ,prawdobodobienstwo, zakres1, zakres2, dokladnosc,po
     return nowePokolenie
 
 
-def implementacjaInwersji(prawdobodobienstwo, zakres1, zakres2, dokladnosc,populacja=[]):
+def implementacjaInwersji(prawdobodobienstwo, zakres1, zakres2, dokladnosc,elita,populacja=[]):
     nowePokolenie=[]
     for x in populacja :
         if random.uniform(0, 100) <= prawdobodobienstwo:
@@ -946,8 +1242,20 @@ def implementacjaInwersji(prawdobodobienstwo, zakres1, zakres2, dokladnosc,popul
                         potomek1cecha2 = "".join(potomek1cecha2)
 
             tmp = individual()
-            tmp.cecha1 = dziesietnaReprezentacja(potomek1cecha1)
-            tmp.cecha2 = dziesietnaReprezentacja(potomek1cecha2)
+            x = dziesietnaReprezentacja(potomek1cecha1)
+            y = dziesietnaReprezentacja(potomek1cecha2)
+            if x < zakres1 or x > zakres2:
+                if x - zakres1 < x - zakres2:
+                    x = zakres1
+                else:
+                    x = zakres2
+            if y < zakres1 or y > zakres2:
+                if y - zakres1 < y - zakres2:
+                    y = zakres1
+                else:
+                    y = zakres2
+            tmp.cecha1 = x
+            tmp.cecha2 = y
             tmp.wynik = bealeFunction(tmp.cecha1, tmp.cecha2)
             nowePokolenie.append(tmp)
         else:
@@ -957,69 +1265,90 @@ def implementacjaInwersji(prawdobodobienstwo, zakres1, zakres2, dokladnosc,popul
 
 
 def licz(ustawienia):
-    wynikFinalny=Wynik.objects.create(id=ustawienia.ID_Wyniku)
+
+    wynikFinalny=Wynik.objects.create()
     populacja=poczatkoweWartosci(ustawienia.wielkoscPopulacji,ustawienia.zakres1,ustawienia.zakres2)
     for i in range(ustawienia.liczbaepok):
+        startime = timezone.now()
         if ustawienia.metodaSelekcji== "SN":
             if(ustawienia.rodzaj_Optymalizacj=="Min"):
-                populacja=selekcjaNajelpszychMIN(ustawienia.ileprzechodzi,populacja)
+                populacja,elita=selekcjaNajelpszychMIN(ustawienia,populacja)
                 if random.uniform(0,100)<=ustawienia.prawdobodobienstwoKrzyzowania:
-                    populacja = implementacjaKrzyzowania(ustawienia.implementacjaKrzyzowania,ustawienia.zakres1, ustawienia.zakres2,ustawienia.dokladnosc,populacja)
-                populacja = implementacjaMutacji(ustawienia.implementacjaMutowania,ustawienia.prawdobodobienstwoMutowania,ustawienia.zakres1, ustawienia.zakres2,ustawienia.dokladnosc,populacja)
+                    populacja = implementacjaKrzyzowania(ustawienia.implementacjaKrzyzowania,ustawienia.zakres1, ustawienia.zakres2,ustawienia.dokladnosc,ustawienia.elita,populacja)
+                populacja = implementacjaMutacji(ustawienia.implementacjaMutowania,ustawienia.prawdobodobienstwoMutowania,ustawienia.zakres1, ustawienia.zakres2,ustawienia.dokladnosc,ustawienia.elita,populacja)
                 populacja = implementacjaInwersji(ustawienia.prawdobodobienstwoinwersji, ustawienia.zakres1,
-                                                 ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                 ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
+                populacja=populacja+elita
             else:
-                populacja = selekcjaNajelpszychMAX(ustawienia.ileprzechodzi, populacja)
+                populacja,elita = selekcjaNajelpszychMAX(ustawienia, populacja)
                 if random.uniform(0, 100) <= ustawienia.prawdobodobienstwoKrzyzowania:
                     populacja = implementacjaKrzyzowania(ustawienia.implementacjaKrzyzowania, ustawienia.zakres1,
-                                                         ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                         ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
                 populacja = implementacjaMutacji(ustawienia.implementacjaMutowania,
                                                  ustawienia.prawdobodobienstwoMutowania, ustawienia.zakres1,
-                                                 ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                 ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
                 populacja = implementacjaInwersji(ustawienia.prawdobodobienstwoinwersji, ustawienia.zakres1,
-                                                  ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                  ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
+                populacja=populacja+elita
         else:
             if ustawienia.metodaSelekcji== "SR":
-                populacja = selekcjaKolemRuletki(populacja)
+                populacja,elita = selekcjaKolemRuletki(ustawienia,populacja)
                 if random.uniform(0, 100) <= ustawienia.prawdobodobienstwoKrzyzowania:
                     populacja = implementacjaKrzyzowania(ustawienia.implementacjaKrzyzowania, ustawienia.zakres1,
-                                                         ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                         ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
                 populacja = implementacjaMutacji(ustawienia.implementacjaMutowania,
                                                  ustawienia.prawdobodobienstwoMutowania, ustawienia.zakres1,
-                                                 ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                 ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
                 populacja = implementacjaInwersji(ustawienia.prawdobodobienstwoinwersji, ustawienia.zakres1,
-                                                  ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                  ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
+                populacja=populacja+elita
             else:
                 if ustawienia.metodaSelekcji == "ST":
-                    populacja = selecjaTurniejowa(ustawienia.ileprzechodzi, populacja)
+                    populacja,elita = selecjaTurniejowa(ustawienia, populacja)
                     if random.uniform(0, 100) <= ustawienia.prawdobodobienstwoKrzyzowania:
                         populacja = implementacjaKrzyzowania(ustawienia.implementacjaKrzyzowania, ustawienia.zakres1,
-                                                             ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                             ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
                     populacja = implementacjaMutacji(ustawienia.implementacjaMutowania,
                                                      ustawienia.prawdobodobienstwoMutowania, ustawienia.zakres1,
-                                                     ustawienia.zakres2, ustawienia.dokladnosc, populacja)
+                                                     ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
                     populacja = implementacjaInwersji(ustawienia.prawdobodobienstwoinwersji, ustawienia.zakres1,
-                                                      ustawienia.zakres2, ustawienia.dokladnosc, populacja)\
+                                                      ustawienia.zakres2, ustawienia.dokladnosc,ustawienia.elita, populacja)
+                    populacja=populacja+elita
 
-        ustawienia.save()
+
 
 
 
 
         sredniwynik = 0
         listawynikow=[]
+        listax=[]
+        listay=[]
+        listaz=[]
+
         for x in populacja:
             sredniwynik += x.wynik
             listawynikow.append(x.wynik)
-        sredniWynik=sredniwynik/populacja.__len__()
+            listax.append(x.cecha1)
+            listay.append(x.cecha2)
+            listaz.append(x.wynik)
+
+
+
+        ustawienia.save()
+        czas=timezone.now()-startime
+        czas= str(czas).split(".")
+        sekundy=str(czas[0].rsplit(":")[-1])
+        setnes=czas[-1]
+        czas=sekundy+"."+setnes
         wyniki_epoki = Epoka.objects.create(
 
-            czas=timezone.now(),
+            czas=czas,
             iteracja=str(i + 1) + "/" + str(ustawienia.liczbaepok),
             sredniWynik=str(sredniwynik / populacja.__len__()),
             odchylenieStandardowe=statistics.stdev(listawynikow),
             rezultaty=wynikFinalny,
-            #wykres= pass
+            ustawienia=ustawienia
         )
         for x in populacja:
             rezultat=PojedynczaWartoscWyniku.objects.create(
@@ -1029,5 +1358,7 @@ def licz(ustawienia):
             Wynik=  wyniki_epoki
              )
         ustawienia.nalezy_do=wyniki_epoki
+
         wyniki_epoki.save()
 
+    return wynikFinalny.id

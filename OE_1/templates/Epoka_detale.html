@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="PL">
+{% load static %}
+
+
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>{% block head_title %}{% endblock %}</title>
+    {% block extra_head %}
+    {% endblock %}
+    <!-- Font Awesome -->
+     <script src="{% static 'js/plotly-latest.min.js'%}"></script>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.11.2/css/all.css">
+    <!-- Bootstrap core CSS -->
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <!-- Material Design Bootstrap -->
+    <link href="{% static 'css/mdb.min.css' %}" rel="stylesheet">
+    <!-- Your custom styles (optional) -->
+    <link href="{% static 'css/style.min.css' %}" rel="stylesheet">
+    <style type="text/css">
+        html,
+        body,
+        header,
+        .carousel {
+            height: 60vh;
+        }
+
+        @media (max-width: 740px) {
+
+            html,
+            body,
+            header,
+            .carousel {
+                height: 100vh;
+            }
+        }
+
+        @media (min-width: 800px) and (max-width: 850px) {
+
+            html,
+            body,
+            header,
+            .carousel {
+                height: 100vh;
+            }
+        }
+
+    </style>
+    <div id="fb-root"></div>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pl_PL/sdk.js#xfbml=1&version=v5.0&appId=612664306154273&autoLogAppEvents=1"></script>
+    <script src="https://apis.google.com/js/plusone.js"></script>
+
+
+</head>
+
+
+
+
+
+
+<body onload="bubsochar2()">
+
+ <main class="mt-5 pt-4">
+        <div class="container dark-grey-text mt-5">
+
+            <!--Grid row-->
+            <div class="row wow fadeIn">
+                 <div class="col-md-6 mb-4 h-auto">
+                     <h2>
+                        Podsumowanie epoki:
+                    </h2>
+                     <p class="lead font-weight-bold">Epoka: {{ object.iteracja }}</p>
+                     <br>
+                     <p class="lead font-weight-bold">Średni wyniki Epok: {{ object.sredniWynik }}</p>
+                     <br>
+                     <p class="lead font-weight-bold">Odchylenie standardowe epoki: {{ object.odchylenieStandardowe }}</p>
+                     <br>
+                     <p class="lead font-weight-bold">Czas liczenia: {{ object.czas }} s</p>
+                     <br>
+                     <hr>
+                </div>
+                <div class="col-md-6 mb-4 h-auto mt-4">
+                    <p class="lead font-weight-bold">Najlepsza wartośc: {{ najlepszy.wartosc}}</p>
+                    <p class="lead font-weight-bold">x = {{ najlepszy.x1 }}</p>
+                    <p class="lead font-weight-bold">y = {{ najlepszy.x2 }}</p>
+                </div>
+
+                <!--Grid column-->
+                <div id="plot" class="col-md-12 mb-4 h-auto">
+
+                </div>
+                <!--Grid column-->
+
+                <div class="container">
+                <hr>
+            <div class="table-responsive">
+                <table class="table">
+                    <h2>
+                        Poszczególne wartości
+                    </h2>
+                    <thead>
+                    <tr>
+                        <th scope="col span">#</th>
+
+                        {% for foo in epoka.pojedynczawartoscwyniku_set.all %}
+                         <th scope="col"> {{ forloop.counter }}</th>
+                        {% endfor %}
+
+
+                    </tr>
+                    </thead>
+                    <tbody>
+
+                        <tr>
+                            <th scope="row"> wartość x:</th>
+                            {% for i in epoka.pojedynczawartoscwyniku_set.all %}
+                            <td>{{ i.x1|floatformat:5}}</td>
+
+                            {% endfor %}
+                        </tr>
+                         <tr>
+                            <th scope="row"> wartość y:</th>
+                            {% for i in epoka.pojedynczawartoscwyniku_set.all %}
+                            <td>{{ i.x2|floatformat:5}}</td>
+
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <th scope="row"> wynik:</th>
+                            {% for i in epoka.pojedynczawartoscwyniku_set.all %}
+                            <td>{{ i.wartosc|floatformat:5}}</td>
+
+                            {% endfor %}
+                        </tr>
+
+
+
+
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+            </div>
+
+
+    </main>
+    <!--Main layout-->
+
+
+</body>
+ <!-- SCRIPTS -->
+  <!-- JQuery -->
+  <script type="text/javascript" src="{%static 'js/jquery-3.4.1.min.js' %}"></script>
+  <!-- Bootstrap tooltips -->
+  <script type="text/javascript" src="{% static 'js/popper.min.js' %}"></script>
+  <!-- Bootstrap core JavaScript -->
+  <script type="text/javascript" src="{% static 'js/bootstrap.min.js' %}"></script>
+  <!-- MDB core JavaScript -->
+  <script type="text/javascript" src="{% static 'js/mdb.min.js'%}"></script>
+  <!-- Initializations -->
+  <script type="text/javascript">
+
+
+
+    // Animations initialization
+    new WOW().init();
+
+  </script>
+<script>
+    function bubsochar2() {
+
+
+        a = {{ lista_x }}
+
+        b ={{lista_y}}
+
+        c = {{lista_z}}
+
+
+        var data=[
+    {
+
+      opacity:0.5,
+      color:'rgb(300,100,200)',
+      type: 'scatter3d',
+      x: a,
+      y: b,
+      z: c,
+        mode: 'markers',
+
+    }
+];
+        var layout = {
+        autosize: true,
+        scene:{
+	    aspectmode: "manual",
+            aspectratio: {
+        x: 1, y: 0.7, z: 1,
+          },
+         xaxis: {
+          nticks: 9,
+            range: [ {{ zakres2 }},{{ zakres1 }}],
+        },
+         yaxis: {
+         nticks: 7,
+         range: [ {{ zakres2 }},{{ zakres1 }}],
+         },
+         zaxis: {
+         nticks: 10,
+          range: [{{min}}, {{max}}],
+         }},
+};
+
+var config = {responsive: true}
+Plotly.newPlot('plot', data,layout,config);
+
+
+    }
+
+
+
+</script>
+
+
+
+
+{% block dodatkowe_skrypty %} {% endblock %}
+</html>

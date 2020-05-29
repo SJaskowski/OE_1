@@ -7,7 +7,7 @@
         <div class="container wow fadeIn">
 
             <!-- Heading -->
-            <h2 class="my-5 h2 text-center">Zadanko </h2>
+            <h2 class="my-5 h2 text-center">Wyszukiwanie ekstremum funkcji Beale</h2>
 
             <!--Grid row-->
             <div class="row">
@@ -31,7 +31,7 @@
                                 <div class="col-md-6 mb-2">
 
                                     <!--firstName-->
-                                    <div class="md-form ">
+                                    <div class="md-form">
                                         {{ formularz.zakres1 }}
 
                                     </div>
@@ -54,18 +54,19 @@
                             <!--Grid row-->
 
                             <div class="row">
-                                <!--address-->
-                                <div class="md-form mb-5 ml-3">
-                                    {{ formularz.dokladnosc_reprezentacji_chromsomu }}
-                                    <label for="address" class=""></label>
-                                </div>
 
-                                <!--address-2-->
-                                <div class="md-form mb-5 ml-2">
+                                <div class="col-md-6 mb-2">
+                                    <div class="md-form">
+                                        {{ formularz.dokladnosc_reprezentacji_chromsomu }}
+                                        <label for="address" class=""></label>
+                                    </div>
+                                 </div>
+                                 <div class="col-md-6 mb-2">
+                                <div class="md-form">
                                     {{ formularz.wielkosc_populacji }}
                                     <label  class=""></label>
                                 </div>
-
+                                </div>
                             </div>
 
                             <!--Grid row-->
@@ -74,9 +75,9 @@
                                 <!--Grid column-->
                                 <div class="col-lg-4 col-md-12 mb-4">
 
-                                    <label>liczba_epok</label>
+                                    <div class="md-form">
                                     {{ formularz.liczba_epok }}
-
+                                     </div>
 
                                 </div>
                                 <!--Grid column-->
@@ -86,32 +87,39 @@
                             </div>
                             <!--Grid row-->
 
-                            <hr>
 
 
 
                             <hr>
                             <div class="d-block my-3">
-                                <label>rodzaj_Optymalizacj </label>
+                                <label>Ekstremum funkcji: </label>
                                 {{ formularz.rodzaj_Optymalizacj }}
                             </div>
                             <div class="d-block my-3">
-                                <label>ile_Przechodzi </label>
-                                {{ formularz.ile_Przechodzi }}
-                            </div>
-
-                            <div class="d-block my-3">
-                                <label>metoda_Selekcji </label>
+                                <label>Metoda selekcji</label>
                                 {{ formularz.metoda_Selekcji }}
                             </div>
+                            <div class="selkcja_najlepszych">
+                                <div class="md-block my-3">
+                                    <label>Ile % populacji ma przejść selekcje: </label>
+                                     {{ formularz.ile_Przechodzi }}
+                                 </div>
+                            </div>
+                            <div class="selkcja_turniejowa">
+                                 <div class="md-block my-3">
+                                        <label>Wielkość turnieju: </label>
+                                     {{ formularz.wielkosc_turnieju }}
+                                </div>
+                            </div>
+
 
                             <div class="d-block my-3">
                                 <label>implementacja_Krzyzowania </label>
                                 {{ formularz.implementacja_Krzyzowania }}
 
                             </div>
-                            <div class="d-block my-3">
-                                <label>prawdopodbienstwo_Krzyzowania </label>
+                            <div class="md-form">
+
                                 {{ formularz.prawdopodbienstwo_Krzyzowania }}
 
                             </div>
@@ -119,25 +127,26 @@
                                 <label>implementacja_MutacjiBrzegowej </label>
                                 {{ formularz.implementacja_MutacjiBrzegowej }}
                             </div>
-                             <div class="d-block my-3">
-                                <label>prawdopodbienstwo_MutacjiBrzegowej </label>
+                            <div class="md-form">
+
                                 {{ formularz.prawdopodbienstwo_MutacjiBrzegowej }}
 
                             </div>
-                            <div class="d-block my-3">
-                                <label>prawdopodbienstwo_OperatoraInwersji </label>
+                            <div class="md-form">
+
                                 {{ formularz.prawdopodbienstwo_OperatoraInwersji }}
                             </div>
+                            <div class="md-form">
 
-                             <div class="d-block my-3">
-                                <label>ID Wyniku </label>
-                                {{ formularz.ID_Wyniku }}
+                                {{ formularz.elita }}
                             </div>
+
+
 
 
                             <hr class="mb-4">
-                            <button class="btn btn-primary btn-lg btn-block" type="submit">PLX 3</button>
-
+                            <button class="btn btn-primary btn-lg btn-block" type="submit">Wykonaj działanie</button>
+                        </div>
                         </form>
 
                     </div>
@@ -155,4 +164,41 @@
 
         </div>
     </main>
+{% endblock %}
+{% block dodatkowe_skrypty %}
+<script>
+
+var ukryj_najlepszych=$('.selkcja_najlepszych');
+var ukryj_turniej=$('.selkcja_turniejowa');
+var selkcja_najlepszych=document.querySelector("input[id=id_metoda_Selekcji_0]");
+function hide() {
+    ukryj_najlepszych.hide()
+    ukryj_turniej.hide();
+}
+selkcja_najlepszych.addEventListener('change',function () {
+    if(this.checked) {
+        ukryj_najlepszych.show();
+        ukryj_turniej.hide()
+    }
+})
+var selkcja_turniejowa=document.querySelector("input[id=id_metoda_Selekcji_2]");
+var selkcja_ruletkowa=document.querySelector("input[id=id_metoda_Selekcji_1]");
+selkcja_ruletkowa.addEventListener('change',function () {
+    if(this.checked){
+    ukryj_turniej.hide();
+    ukryj_najlepszych.hide();
+    }
+
+})
+selkcja_turniejowa.addEventListener('change',function () {
+    if(this.checked){
+    ukryj_turniej.show();
+    ukryj_najlepszych.hide();
+    }
+
+})
+
+
+
+</script>
 {% endblock %}
